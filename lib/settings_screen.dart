@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'models.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -177,7 +178,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           final ct = colorThemes[i];
           final selected = _s.themeIndex == i;
           return GestureDetector(
-            onTap: () => setState(() => _s = _s.copyWith(themeIndex: i)),
+            onTap: () {
+              setState(() => _s = _s.copyWith(themeIndex: i));
+              context.read<ThemeNotifier>().setIndex(i);
+            },
             child: Column(
               children: [
                 AnimatedContainer(

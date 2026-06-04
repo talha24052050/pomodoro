@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:provider/provider.dart';
 import 'models.dart';
 import 'home_screen.dart';
 
@@ -43,32 +44,47 @@ class PomodoroApp extends StatefulWidget {
 
 class _PomodoroAppState extends State<PomodoroApp> {
   AppSettings _settings = AppSettings();
+  late final ThemeNotifier _themeNotifier;
 
   @override
   void initState() {
     super.initState();
-    AppSettings.load().then((s) => setState(() => _settings = s));
+    _themeNotifier = ThemeNotifier(0);
+    AppSettings.load().then((s) {
+      setState(() => _settings = s);
+      _themeNotifier.setIndex(s.themeIndex);
+    });
   }
 
-  void _onSettingsChanged(AppSettings s) => setState(() => _settings = s);
+  void _onSettingsChanged(AppSettings s) {
+    setState(() => _settings = s);
+    _themeNotifier.setIndex(s.themeIndex);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = colorThemes[_settings.themeIndex];
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: theme.background,
-        colorScheme: ColorScheme.dark(
-          primary: theme.primary,
-          surface: theme.surface,
-        ),
-        useMaterial3: true,
-      ),
-      home: HomeScreen(
-        settings: _settings,
-        onSettingsChanged: _onSettingsChanged,
+    return ChangeNotifierProvider<ThemeNotifier>.value(
+      value: _themeNotifier,
+      child: Consumer<ThemeNotifier>(
+        builder: (context, themeNotifier, _) {
+          final theme = themeNotifier.theme;
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: ThemeData(
+              brightness: Brightness.dark,
+              scaffoldBackgroundColor: theme.background,
+              colorScheme: ColorScheme.dark(
+                primary: theme.primary,
+                surface: theme.surface,
+              ),
+              useMaterial3: true,
+            ),
+            home: HomeScreen(
+              settings: _settings,
+              onSettingsChanged: _onSettingsChanged,
+            ),
+          );
+        },
       ),
     );
   }

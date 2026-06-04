@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:provider/provider.dart';
 import 'package:vibration/vibration.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'main.dart';
@@ -22,19 +23,21 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => HomeScreenState();
 }
 
-class HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   static void Function()? togglePauseCallback;
 
   bool _isRunning = false;
   bool _isPomodoro = true;
   late int _remainingSeconds;
   Timer? _timer;
+  late AnimationController _arcController;
 
   @override
   void initState() {
     super.initState();
     togglePauseCallback = _togglePause;
     _remainingSeconds = widget.settings.pomodoroDuration * 60;
+    _arcController = AnimationController(vsync: this)..value = 1.0;
     _applyWakelock();
   }
 
@@ -53,6 +56,7 @@ class HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _timer?.cancel();
     _timer = null;
+    _arcController.dispose();
     togglePauseCallback = null;
     WakelockPlus.disable();
     super.dispose();
@@ -68,8 +72,6 @@ class HomeScreenState extends State<HomeScreen> {
       ? widget.settings.pomodoroDuration * 60
       : widget.settings.breakDuration * 60;
 
-  double get _progress =>
-      _totalSeconds > 0 ? _remainingSeconds / _totalSeconds : 0;
 
   String get _timeString {
     final m = _remainingSeconds ~/ 60;
@@ -86,6 +88,11 @@ class HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     _timer?.cancel();
     setState(() => _isRunning = true);
+    _arcController.animateTo(
+      0,
+      duration: Duration(seconds: _remainingSeconds),
+      curve: Curves.linear,
+    );
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
     _updateProgressNotification();
   }
@@ -94,6 +101,7 @@ class HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     _timer?.cancel();
     _timer = null;
+    _arcController.stop();
     setState(() => _isRunning = false);
     _updateProgressNotification();
   }
@@ -102,6 +110,8 @@ class HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     _timer?.cancel();
     _timer = null;
+    _arcController.stop();
+    _arcController.value = 1.0;
     final total = _totalSeconds;
     setState(() {
       _isRunning = false;
@@ -152,6 +162,12 @@ class HomeScreenState extends State<HomeScreen> {
       _isRunning = true;
     });
 
+    _arcController.value = 1.0;
+    _arcController.animateTo(
+      0,
+      duration: Duration(seconds: nextSeconds),
+      curve: Curves.linear,
+    );
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
     _updateProgressNotification();
   }
@@ -233,7 +249,7 @@ class HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = colorThemes[widget.settings.themeIndex];
+    final theme = context.watch<ThemeNotifier>().theme;
     return Scaffold(
       backgroundColor: theme.background,
       body: SafeArea(
@@ -241,8 +257,6 @@ class HomeScreenState extends State<HomeScreen> {
           children: [
             _buildTopBar(theme),
             const Spacer(),
-            _buildPhaseChip(theme),
-            const SizedBox(height: 48),
             _buildArc(theme),
             const SizedBox(height: 64),
             _buildControls(theme),
@@ -279,27 +293,6 @@ class HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPhaseChip(ColorTheme theme) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.primary.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.primary.withValues(alpha: 0.3), width: 1),
-      ),
-      child: Text(
-        _isPomodoro ? 'POMODORO' : 'KISA MOLA',
-        style: TextStyle(
-          color: theme.primary,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 3,
-        ),
-      ),
-    );
-  }
-
   Widget _buildArc(ColorTheme theme) {
     return SizedBox(
       width: 280,
@@ -307,9 +300,13 @@ class HomeScreenState extends State<HomeScreen> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          CustomPaint(
-            size: const Size(280, 280),
-            painter: TimerArcPainter(progress: _progress, color: theme.primary),
+          AnimatedBuilder(
+            animation: _arcController,
+            builder: (context, _) => CustomPaint(
+              size: const Size(280, 280),
+              painter: TimerArcPainter(
+                  progress: _arcController.value, color: theme.primary),
+            ),
           ),
           Column(
             mainAxisSize: MainAxisSize.min,
@@ -360,13 +357,6 @@ class HomeScreenState extends State<HomeScreen> {
             decoration: BoxDecoration(
               color: theme.primary,
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: theme.primary.withValues(alpha: 0.45),
-                  blurRadius: 24,
-                  spreadRadius: 2,
-                ),
-              ],
             ),
             child: Icon(
               _isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,

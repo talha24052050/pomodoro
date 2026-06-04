@@ -55,6 +55,20 @@ const List<ColorTheme> colorThemes = [
   ),
 ];
 
+class ThemeNotifier extends ChangeNotifier {
+  int _index;
+
+  ThemeNotifier(this._index);
+
+  int get index => _index;
+  ColorTheme get theme => colorThemes[_index];
+
+  void setIndex(int i) {
+    _index = i;
+    notifyListeners();
+  }
+}
+
 class AppSettings {
   int pomodoroDuration;
   int breakDuration;
